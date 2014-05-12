@@ -1,7 +1,11 @@
 require 'cinch'
 
 
-$admin_room = '#Freyja-dev'
+$admin_room = '#TeamMetallurgy'
+$room = '#Metallurgy'
+
+$bot_name = 'MetallurgyBot'
+$server = 'localhost'
 
 $requests = {}
 
@@ -13,10 +17,10 @@ end
 
 bot = Cinch::Bot.new do
   configure do |c|
-    c.nick      = 'MetallurgyBot'
-    c.realname  = 'MetallurgyBot'
-    c.server    = 'irc.esper.net'
-    c.channels  = ['#Freyja-dev']
+    c.nick      = $bot_name
+    c.realname  = $bot_name
+    c.server    = $server
+    c.channels  = [$room, $admin_room]
   end
 
 
@@ -51,8 +55,8 @@ bot = Cinch::Bot.new do
     if $requests.empty?
       m.reply 'No pending white-list applications.'
     else
-      m.reply 'Pending white-list applications:'
-      $requests.each { |request| m.reply request.nick }
+      m.reply "#{$requests.size} Pending white-list applications:"
+      $requests.each_with_index { |(name, request), index| m.reply "#{index}: #{request.name}" }
     end
   end
 end
