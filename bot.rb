@@ -2,11 +2,9 @@ require 'cinch'
 require 'cinch/plugins/identify'
 require 'yaml/store'
 
-
 class Request < Struct.new(:nick, :name, :channel)
 
 end
-
 store = YAML::Store.new("data.yml")
 
 $admin_room = store.transaction { store.fetch(:admin_room, '#TeamMetallurgy') }
@@ -18,6 +16,12 @@ $ns_name = store.transaction { store.fetch(:ns_name, "") }
 $ns_password = store.transaction { store.fetch(:ns_password, "") }
 
 $requests = {}
+
+def sync_datastore(store)
+  store.transaction do
+    store[:requests] = $requests
+  end
+end
 
 bot = Cinch::Bot.new do
   configure do |c|
@@ -38,7 +42,6 @@ bot = Cinch::Bot.new do
 
 
   on :message, /^!request (.+)/ do |m, minecraftname|
-
     $requests[minecraftname] = Request.new(m.user.nick, minecraftname, m.channel.name)
 
     store.transaction do
@@ -52,31 +55,48 @@ bot = Cinch::Bot.new do
   end
 
   on :message, /^!accept (.+)/ do |m, minecraftname|
-    if $requests.has_key?(minecraftname)
-      current_request = $requests.delete(minecraftname)
-      Channel(current_request.channel).send "#{current_request.nick} has been added to the white-list by #{m.user.nick}."
-    else
-      m.reply "Request not found for name \"#{minecraftname}\"."
+    if Channel($admin_room).opped?(m.user)
+      if $requests.has_key?(minecraftname)
+        request = $requests.delete(minecraftname)
+
+        sync_datastore(store)
+
+        Channel(request.channel).send "#{request.nick} has been added to the white-list by #{m.user.nick}."
+      else
+        m.reply "Request not found for name \"#{minecraftname}\"."
+      end
     end
   end
 
   on :message, /^!deny (.+)/ do |m, minecraftname|
-    if $requests.has_key?(minecraftname)
-      current_request = $requests.delete(minecraftname)
-      Channel(current_request.channel).send "#{current_request.nick} has been denied to be white-listed by #{m.user.nick}."
-    else
-      m.reply "Request not found for name \"#{minecraftname}\"."
+    if Channel($admin_room).opped?(m.user)
+      if $requests.has_key?(minecraftname)
+        current_request = $requests.delete(minecraftname)
+
+        sync_datastore(store)
+
+        Channel(current_request.channel).send "#{current_request.nick} has been denied to be white-listed by #{m.user.nick}."
+      else
+        m.reply "Request not found for name \"#{minecraftname}\"."
+      end
     end
   end
 
   on :message, /^!request-list/ do |m|
-    requests = store.transaction { store[:requests] }
+    if Channel($admin_room).opped?(m.user)
+      requests = store.transaction { store[:requests] }
 
-    if requests.nil? || requests.empty?
-      m.reply 'No pending white-list applications.'
-    else
-      m.reply "#{requests.size} Pending white-list applications:"
-      requests.each_with_index { |(name, request), index| m.reply "#{index}: #{request.name}" }
+      if requests.nil? || requests.empty?
+        m.user.msg 'No pending white-list applications.'
+      else
+        m.user.msg "#{requests.size} Pending white-list applications:"
+        requests.each_with_index { |(name, request), index| m.user.msg "#{index}: #{request.name}" }
+      end
+    end
+  end
+
+  on :message, /^!get-whitelist/ do |m|
+    if Channel($admin_room).opped?(m.user)
     end
   end
 end
